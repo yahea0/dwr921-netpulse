@@ -1,0 +1,71 @@
+
+name: Build NetPulse Android APK
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Extract project ZIP
+        run: unzip -o dwr921-netpulse-android.zip -d source
+
+      - name: Install dependencies
+        working-directory: source/dwr921-netpulse
+        run: npm install --no-audit --no-fund
+
+      - name: Build web app
+        working-directory: source/dwr921-netpulse
+        run: npm run build
+
+      - name: Create Android project
+        working-directory: source/dwr921-netpulse
+        run: npx cap add android
+
+      - name: Sync Android project
+        working-directory: source/dwr921-netpulse
+        run: npx cap sync android
+
+      - name: Build APK
+        working-directory: source/dwr921-netpulse/android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+          cp app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/debug/NetPulse.apk
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: NetPulse-Android-APK
+          path: source/dwr921-netpulse/android/app/build/outputs/apk/debug/NetPulse.apk
+          retention-days: 30
+
+      - name: Publish APK release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: netpulse-apk-${{ github.run_number }}
+          name: NetPulse Android APK
+          target_commitish: ${{ github.sha }}
+          make_latest: true
+          files: source/dwr921-netpulse/android/app/build/outputs/apk/debug/NetPulse.apk
